@@ -32,23 +32,23 @@ function fetchUrl(url, options = {}) {
 }
 
 async function getTranscript(videoId, lang = 'ru') {
-  // Innertube API без ключа — Android client
   const playerBody = JSON.stringify({
     context: {
       client: {
-        clientName: 'ANDROID',
-        clientVersion: '17.31.35',
-        androidSdkVersion: 30,
+        clientName: 'WEB_EMBEDDED_PLAYER',
+        clientVersion: '2.20231219.01.00',
         hl: 'ru',
         gl: 'RU',
-        utcOffsetMinutes: 180
+      },
+      thirdParty: {
+        embedUrl: 'https://www.youtube.com'
       }
     },
     videoId
   });
 
   const { text: playerJson, status } = await fetchUrl(
-    'https://www.youtube.com/youtubei/v1/player',
+    'https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
     { method: 'POST', body: playerBody }
   );
 
@@ -104,6 +104,7 @@ async function getTranscript(videoId, lang = 'ru') {
 
   return { title, channel, language: track.languageCode, snippets };
 }
+
 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
