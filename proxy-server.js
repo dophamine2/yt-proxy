@@ -81,6 +81,9 @@ async function getTranscript(videoId, lang = 'ru') {
   // Шаг 5: Скачиваем XML субтитров
   const { text: xml } = await fetchUrl(captionUrl);
   
+  // Логируем первые 500 символов XML чтобы увидеть структуру
+  console.log('[Debug] XML preview:', xml.slice(0, 500));
+  
   // Шаг 6: Парсим XML
   const snippets = [];
   const regex = /<text start="([^"]+)" dur="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g;
