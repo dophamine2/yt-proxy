@@ -41,12 +41,10 @@ async function getTranscript(videoId, lang = 'ru') {
   if (status !== 200) throw new Error(`YouTube page status: ${status}`);
   
   // Шаг 2: Извлекаем ytInitialPlayerResponse из HTML
-  const playerMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});(?:var |<\/script>)/s);
+  let playerMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});(?:var |<\/script>)/s);
   if (!playerMatch) {
-    // Пробуем альтернативный паттерн
-    const altMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\});\s*(?:var |if |<)/);
-    if (!altMatch) throw new Error('ytInitialPlayerResponse not found in page');
-    playerMatch = altMatch;
+    playerMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\});\s*(?:var |if |<)/);
+    if (!playerMatch) throw new Error('ytInitialPlayerResponse not found in page');
   }
   
   let playerData;
