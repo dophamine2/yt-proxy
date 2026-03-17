@@ -12,11 +12,11 @@ function fetchUrl(url, options = {}) {
       path: urlObj.pathname + urlObj.search,
       method,
       headers: {
-        'User-Agent': 'com.google.android.youtube/17.31.35 (Linux; U; Android 11) gzip',
+        'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
         'Content-Type': 'application/json',
         'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
         'X-YouTube-Client-Name': '3',
-        'X-YouTube-Client-Version': '17.31.35',
+        'X-YouTube-Client-Version': '19.09.37',
         ...headers
       }
     };
@@ -35,13 +35,11 @@ async function getTranscript(videoId, lang = 'ru') {
   const playerBody = JSON.stringify({
     context: {
       client: {
-        clientName: 'WEB_EMBEDDED_PLAYER',
-        clientVersion: '2.20231219.01.00',
+        clientName: 'ANDROID',
+        clientVersion: '19.09.37',
+        androidSdkVersion: 30,
         hl: 'ru',
         gl: 'RU',
-      },
-      thirdParty: {
-        embedUrl: 'https://www.youtube.com'
       }
     },
     videoId
