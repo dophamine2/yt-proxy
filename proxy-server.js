@@ -12,15 +12,17 @@ function fetchUrl(url, options = {}) {
       path: urlObj.pathname + urlObj.search,
       method,
       headers: {
-        'User-Agent': 'com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
-        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
-        'X-YouTube-Client-Name': '3',
-        'X-YouTube-Client-Version': '19.09.37',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         ...headers
       }
     };
     const req = https.request(reqOptions, (res) => {
+      // Follow redirects
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchUrl(res.headers.location, options).then(resolve).catch(reject);
+      }
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => resolve({ status: res.statusCode, text: data }));
@@ -32,54 +34,49 @@ function fetchUrl(url, options = {}) {
 }
 
 async function getTranscript(videoId, lang = 'ru') {
-  const playerBody = JSON.stringify({
-    context: {
-      client: {
-        clientName: 'ANDROID',
-        clientVersion: '19.09.37',
-        androidSdkVersion: 30,
-        hl: 'ru',
-        gl: 'RU',
-      }
-    },
-    videoId
-  });
-
-  const { text: playerJson, status } = await fetchUrl(
-    'https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
-    { method: 'POST', body: playerBody }
-  );
-
-  if (status !== 200) throw new Error('YouTube player API status: ' + status);
-
+  // Шаг 1: Загружаем HTML страницу видео
+  const pageUrl = `https://www.youtube.com/watch?v=${videoId}&hl=ru`;
+  const { text: html, status } = await fetchUrl(pageUrl);
+  
+  if (status !== 200) throw new Error(`YouTube page status: ${status}`);
+  
+  // Шаг 2: Извлекаем ytInitialPlayerResponse из HTML
+  const playerMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});(?:var |<\/script>)/s);
+  if (!playerMatch) {
+    // Пробуем альтернативный паттерн
+    const altMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{[\s\S]+?\});\s*(?:var |if |<)/);
+    if (!altMatch) throw new Error('ytInitialPlayerResponse not found in page');
+    playerMatch = altMatch;
+  }
+  
   let playerData;
   try {
-    playerData = JSON.parse(playerJson);
+    playerData = JSON.parse(playerMatch[1]);
   } catch(e) {
-    throw new Error('Failed to parse player response');
+    throw new Error('Failed to parse ytInitialPlayerResponse: ' + e.message);
   }
-
-  // Название и канал
-  const title   = playerData?.videoDetails?.title   || null;
-  const channel = playerData?.videoDetails?.author  || null;
-
-  // Субтитры
+  
+  // Шаг 3: Название и канал
+  const title   = playerData?.videoDetails?.title  || null;
+  const channel = playerData?.videoDetails?.author || null;
+  
+  // Шаг 4: Находим субтитры
   const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   if (!tracks || tracks.length === 0) {
     throw new Error('No captions available for this video');
   }
-
+  
   // Выбираем язык: ru → en → первый доступный
   const track = tracks.find(t => t.languageCode === lang)
     || tracks.find(t => t.languageCode === 'en')
     || tracks[0];
-
-  const baseUrl = track.baseUrl.replace(/&fmt=\w+$/, '');
-
-  // Скачиваем XML субтитров
-  const { text: xml } = await fetchUrl(baseUrl);
-
-  // Парсим XML
+  
+  const captionUrl = track.baseUrl;
+  
+  // Шаг 5: Скачиваем XML субтитров
+  const { text: xml } = await fetchUrl(captionUrl);
+  
+  // Шаг 6: Парсим XML
   const snippets = [];
   const regex = /<text start="([^"]+)" dur="([^"]+)"[^>]*>([\s\S]*?)<\/text>/g;
   let match;
@@ -97,37 +94,42 @@ async function getTranscript(videoId, lang = 'ru') {
       .trim();
     if (text) snippets.push({ text, start, end: start + dur });
   }
-
+  
   if (snippets.length === 0) throw new Error('Parsed 0 snippets from XML');
-
+  
   return { title, channel, language: track.languageCode, snippets };
 }
-
-
+ 
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Content-Type', 'application/json');
-
+  
   if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-
+  
   const url = new URL(req.url, `http://localhost:${PORT}`);
-
+  
+  if (url.pathname === '/') {
+    res.writeHead(200);
+    res.end(JSON.stringify({ status: 'ok', message: 'Transcript proxy running' }));
+    return;
+  }
+  
   if (url.pathname !== '/api/transcript') {
     res.writeHead(404);
     res.end(JSON.stringify({ error: 'Not found' }));
     return;
   }
-
+  
   const videoId = url.searchParams.get('v');
   const lang    = url.searchParams.get('lang') || 'ru';
-
+  
   if (!videoId) {
     res.writeHead(400);
     res.end(JSON.stringify({ error: 'Missing ?v=VIDEO_ID' }));
     return;
   }
-
+  
   try {
     const result = await getTranscript(videoId, lang);
     res.writeHead(200);
