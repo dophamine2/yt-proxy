@@ -59,8 +59,15 @@ async function getTranscript(videoId, lang = 'ru') {
   const channel = playerData?.videoDetails?.author || null;
   
   // Шаг 4: Находим субтитры
+  console.log('[Debug] videoDetails:', JSON.stringify(playerData?.videoDetails?.title));
+  console.log('[Debug] captions keys:', JSON.stringify(Object.keys(playerData?.captions || {})));
+  console.log('[Debug] tracks:', JSON.stringify(playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks?.map(t => t.languageCode)));
+  
   const tracks = playerData?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
   if (!tracks || tracks.length === 0) {
+    // Проверяем есть ли автосубтитры
+    const autoTracks = playerData?.captions?.playerCaptionsTracklistRenderer?.translationLanguages;
+    console.log('[Debug] translationLanguages count:', autoTracks?.length);
     throw new Error('No captions available for this video');
   }
   
